@@ -7249,6 +7249,7 @@ import { ImageModel } from "../../../DB/models/imageSchema.model.js";
 import { ReportModel } from "../../../DB/models/reportSchema.js";
 import { verifyOTP } from "./authontecation.service.js";
 import AppSettingsSchema from "../../../DB/models/AppSettingsSchema.js";
+import ProjectSubmission from "../../../DB/models/ProjectSubmission.js";
 
 export const updateSubscription = asyncHandelr(async (req, res, next) => {
     const { userId } = req.params;
@@ -7847,3 +7848,245 @@ export const updateMyProfile = asyncHandelr(async (req, res, next) => {
         data: updatedUser,
     });
 });
+
+
+
+
+
+// ==================== إضافة تقديم مشروع جديد ====================
+// ==================== إضافة تقديم مشروع جديد ====================
+export const createProjectSubmission = asyncHandelr(async (req, res, next) => {
+
+    const {
+        fullName,
+        phone,
+        email,
+        projectName,
+        projectDescription,
+        financialStudy,
+        amountNeeded,
+        equityPercentage,
+        partnershipType,
+        exitStrategy,
+        projectStatus,
+        projectDuration,
+        achievementsSoFar,
+        hasCommercialRegister,
+        hasOffice,
+        businessModel,
+        packageType
+    } = req.body;
+
+    // ✅ التحقق الأساسي
+    if (!fullName || !phone || !email) {
+        return next(new Error("يجب إدخال الاسم والتليفون والإيميل", { cause: 400 }));
+    }
+
+    if (!projectName || !projectDescription || !financialStudy) {
+        return next(new Error("يجب إدخال اسم المشروع والوصف والدراسة المالية", { cause: 400 }));
+    }
+
+    // ✅ التحقق من نوع الباقة
+    const validPackages = ["basic", "pro", "premium"];
+    if (!packageType || !validPackages.includes(packageType)) {
+        return next(new Error("نوع الباقة غير صحيح", { cause: 400 }));
+    }
+
+    const packagePrices = { basic: 350, pro: 700, premium: 1200 };
+    const packagePrice = packagePrices[packageType];
+
+    // ✅ التحقق من وجود تقديم سابق بنفس الإيميل
+    const existingSubmission = await dbservice.findOne({
+        model: ProjectSubmission,
+        filter: { "user.email": email, status: { $in: ["pending", "under_review"] } }
+    });
+
+    if (existingSubmission) {
+        return next(new Error("يوجد طلب سابق قيد المراجعة بنفس الإيميل", { cause: 400 }));
+    }
+
+    // ✅ رفع الفيديو (اختياري)
+    let videoData = null;
+
+    if (req.file) {
+        const uploadedVideo = await cloud.uploader.upload(req.file.path, {
+            folder: "startuprelly/projects/videos",
+            resource_type: "video",
+            chunk_size: 6000000,
+        });
+
+        videoData = {
+            originalFileName: req.file.originalname,
+            secure_url: uploadedVideo.secure_url,
+            public_id: uploadedVideo.public_id,
+            duration: Math.round(uploadedVideo.duration || 0),
+            thumbnailUrl: uploadedVideo.secure_url.replace(/\.\w+$/, '.jpg')
+        };
+    }
+
+    // ✅ إنشاء التقديم
+    const submission = await dbservice.create({
+        model: ProjectSubmission,
+        data: {
+            user: {
+                fullName,
+                phone,
+                email
+            },
+            project: {
+                name: projectName,
+                description: projectDescription,
+                financialStudy,
+                amountNeeded: Number(amountNeeded),
+                equityPercentage: Number(equityPercentage)
+            },
+            partnershipType,
+            exitStrategy,
+            projectStatus,
+            projectDuration,
+            achievementsSoFar,
+            hasCommercialRegister: hasCommercialRegister === "true" || hasCommercialRegister === true,
+            hasOffice: hasOffice === "true" || hasOffice === true,
+            businessModel,
+            video: videoData,
+            riskAcknowledgment: {
+                accepted: true,
+                acceptedAt: new Date()
+            },
+            packageType,
+            packagePrice,
+            submittedBy: req.user?._id || null
+        }
+    });
+
+    // ✅ إرسال إيميل تأكيد محسن
+    try {
+        const emailHTML = `
+    <div style="font-family: 'Cairo', Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 30px; background:#f8fafc; border-radius: 16px;">
+        <div style="text-align: center; margin-bottom: 30px;">
+            <h1 style="color: #10b981; margin: 0;">StartupRelly</h1>
+            <p style="color: #64748b; font-size: 18px;">شبكة تمويل المشاريع الشبابية</p>
+        </div>
+        
+        <h2 style="color: #1e2937;">شكراً لثقتك يا ${fullName} 👋</h2>
+        
+        <p style="font-size: 16px; line-height: 1.7; color: #334155;">
+            تم استلام طلب تقديم مشروعك بنجاح على <strong>StartupRelly</strong>.
+        </p>
+        
+        <div style="background: white; padding: 20px; border-radius: 12px; margin: 25px 0;">
+            <p><strong>اسم المشروع:</strong> ${projectName}</p>
+            <p><strong>المبلغ المطلوب:</strong> ${Number(amountNeeded).toLocaleString()} جنيه</p>
+            <p><strong>النسبة المطروحة:</strong> ${equityPercentage}%</p>
+        </div>
+        
+        <p style="color: #64748b;">
+            فريقنا بيقوم دلوقتي بمراجعة مشروعك بعناية، وهنرد عليك خلال <strong>48 ساعة كحد أقصى</strong>.
+        </p>
+        
+        <p style="margin-top: 30px; color: #10b981; font-weight: bold;">
+            لو عندك أي استفسار، ابعتلنا على support@startuprelly.com
+        </p>
+        
+        <hr style="margin: 30px 0; border-color: #e2e8f0;">
+        <p style="text-align: center; color: #94a3b8; font-size: 14px;">
+            مع تحيات فريق StartupRelly<br>
+            منصة تمويل المشاريع الشبابية في مصر
+        </p>
+    </div>`;
+
+        await sendemail({
+            to: email,
+            subject: "تم استلام مشروعك على StartupRelly بنجاح",
+            html: emailHTML,
+            text: `شكراً ${fullName}، تم استلام مشروعك "${projectName}" بنجاح. سيتم مراجعته خلال 48 ساعة.`
+        });
+
+        console.log(`✅ تم إرسال إيميل تأكيد احترافي إلى: ${email}`);
+
+    } catch (emailError) {
+        console.error("فشل إرسال الإيميل:", emailError.message);
+    }
+
+  
+    return successresponse(res, {
+        message: "تم تقديم المشروع بنجاح، سيتم مراجعته قريباً",
+        data: {
+            submissionId: submission._id,
+            projectName: projectName,
+            status: "pending"
+        }
+    }, 201);
+});
+
+
+
+
+
+
+
+
+
+
+// ==================== جلب كل تقديمات المشاريع ====================
+// ==================== جلب كل تقديمات المشاريع (مرتبة من الأحدث للأقدم) ====================
+export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
+
+    const {
+        status,           // فلتر حسب الحالة
+        packageType,      // فلتر حسب نوع الباقة
+        limit = 20,
+        page = 1
+    } = req.query;
+
+    const skip = (page - 1) * Number(limit);
+
+    // بناء الفلتر
+    let filter = {};
+
+    if (status) {
+        filter.status = status;
+    }
+
+    if (packageType) {
+        filter.packageType = packageType;
+    }
+
+    // جلب البيانات
+    const submissions = await ProjectSubmission.find(filter)
+        .select("-__v")
+        .populate([
+            {
+                path: "submittedBy",
+                select: "fullName email phone"
+            },
+            {
+                path: "reviewedBy",
+                select: "fullName email"
+            }
+        ])
+        .sort({ createdAt: -1 })        // من الأحدث للأقدم
+        .limit(Number(limit))
+        .skip(skip);
+
+    // جلب إجمالي العدد (بدون dbservice)
+    const total = await ProjectSubmission.countDocuments(filter);
+
+    const totalPages = Math.ceil(total / Number(limit));
+
+    return successresponse(res, {
+        message: "تم جلب جميع تقديمات المشاريع بنجاح",
+        data: {
+            submissions,
+            pagination: {
+                total,
+                totalPages,
+                currentPage: Number(page),
+                limit: Number(limit),
+                hasNext: Number(page) < totalPages,
+                hasPrev: Number(page) > 1
+            }
+        }
+    }, 200);
+});
+

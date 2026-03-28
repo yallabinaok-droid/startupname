@@ -528,6 +528,8 @@ export const forgetpassword = asyncHandelr(async (req, res, next) => {
 
 
 
+
+
 export const resetpassword = asyncHandelr(async (req, res, next) => {
     const { email, password, code } = req.body;
     console.log(email, password, code);
