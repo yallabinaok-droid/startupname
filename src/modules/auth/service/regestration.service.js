@@ -8030,24 +8030,105 @@ export const createProjectSubmission = asyncHandelr(async (req, res, next) => {
 
 // ==================== جلب كل تقديمات المشاريع ====================
 // ==================== جلب كل تقديمات المشاريع (مرتبة من الأحدث للأقدم) ====================
+// export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
+
+//     const {
+//         status,           // فلتر حسب الحالة
+//         packageType,      // فلتر حسب نوع الباقة
+//         limit = 20,
+//         page = 1
+//     } = req.query;
+
+//     const skip = (page - 1) * Number(limit);
+
+//     // بناء الفلتر
+//     let filter = {};
+
+//     if (status) {
+//         filter.status = status;
+//     }
+
+//     if (packageType) {
+//         filter.packageType = packageType;
+//     }
+
+//     // جلب البيانات
+//     const submissions = await ProjectSubmission.find(filter)
+//         .select("-__v")
+//         .populate([
+//             {
+//                 path: "submittedBy",
+//                 select: "fullName email phone"
+//             },
+//             {
+//                 path: "reviewedBy",
+//                 select: "fullName email"
+//             }
+//         ])
+//         .sort({ createdAt: -1 })        // من الأحدث للأقدم
+//         .limit(Number(limit))
+//         .skip(skip);
+
+//     // جلب إجمالي العدد (بدون dbservice)
+//     const total = await ProjectSubmission.countDocuments(filter);
+
+//     const totalPages = Math.ceil(total / Number(limit));
+
+//     return successresponse(res, {
+//         message: "تم جلب جميع تقديمات المشاريع بنجاح",
+//         data: {
+//             submissions,
+//             pagination: {
+//                 total,
+//                 totalPages,
+//                 currentPage: Number(page),
+//                 limit: Number(limit),
+//                 hasNext: Number(page) < totalPages,
+//                 hasPrev: Number(page) > 1
+//             }
+//         }
+//     }, 200);
+// });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// ==================== جلب كل تقديمات المشاريع المعتمدة فقط (approved) ====================
 export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
 
-    const {
-        status,           // فلتر حسب الحالة
-        packageType,      // فلتر حسب نوع الباقة
-        limit = 20,
-        page = 1
+    const { 
+        packageType,      // فلتر حسب نوع الباقة (اختياري)
+        limit = 20, 
+        page = 1 
     } = req.query;
 
     const skip = (page - 1) * Number(limit);
 
-    // بناء الفلتر
-    let filter = {};
+    // الفلتر الثابت على الحالة "approved"
+    let filter = {
+        status: "published"
+    };
 
-    if (status) {
-        filter.status = status;
-    }
-
+    // إذا جاء فلتر للباقة، نضيفه
     if (packageType) {
         filter.packageType = packageType;
     }
@@ -8069,13 +8150,13 @@ export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
         .limit(Number(limit))
         .skip(skip);
 
-    // جلب إجمالي العدد (بدون dbservice)
+    // جلب إجمالي العدد
     const total = await ProjectSubmission.countDocuments(filter);
 
     const totalPages = Math.ceil(total / Number(limit));
 
     return successresponse(res, {
-        message: "تم جلب جميع تقديمات المشاريع بنجاح",
+        message: "تم جلب جميع المشاريع المعتمدة بنجاح",
         data: {
             submissions,
             pagination: {
@@ -8089,4 +8170,3 @@ export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
         }
     }, 200);
 });
-

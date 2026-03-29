@@ -63,7 +63,7 @@ const projectSubmissionSchema = new Schema({
         // required: true
     },
 
-    // ==================== حالة المشروع ====================
+  
     projectStatus: {
         type: String,
         enum: Object.values(projectStatusTypes),
