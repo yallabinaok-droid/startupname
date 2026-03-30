@@ -73,7 +73,7 @@ routr.post(
 
 
 
-routr.put(
+routr.patch(
     "/updateProjectSubmission/:submissionId",
     uploadCloudFile([
         ...fileValidationTypes.video// فقط فيديو       
