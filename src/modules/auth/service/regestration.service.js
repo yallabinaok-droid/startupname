@@ -8285,3 +8285,88 @@ export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
         }
     }, 200);
 });
+
+
+
+
+
+// ==================== تعديل بيانات تقديم المشروع عبر ID ====================
+export const updateProjectSubmission = asyncHandelr(async (req, res, next) => {
+
+    const { submissionId } = req.params;   // أو req.body لو بتحب تستخدم body
+
+    if (!submissionId) {
+        return next(new Error("يجب إدخال معرف التقديم (submissionId)", { cause: 400 }));
+    }
+
+    // جلب التقديم الحالي
+    const submission = await ProjectSubmission.findById(submissionId);
+
+    if (!submission) {
+        return next(new Error("لم يتم العثور على التقديم", { cause: 404 }));
+    }
+
+    // استخراج البيانات المراد تعديلها من req.body
+    const {
+        packageType,
+        packagePrice,
+        status
+    } = req.body;
+
+    // ✅ تحديث packageType و packagePrice
+    if (packageType) {
+        const validPackages = ["basic", "pro", "premium"];
+        if (!validPackages.includes(packageType)) {
+            return next(new Error("نوع الباقة غير صحيح", { cause: 400 }));
+        }
+        submission.packageType = packageType;
+        
+        // تحديث packagePrice حسب النوع الجديد
+        const packagePrices = { basic: 350, pro: 700, premium: 1200 };
+        submission.packagePrice = packagePrices[packageType];
+    }
+
+    if (packagePrice !== undefined) {
+        submission.packagePrice = Number(packagePrice);
+    }
+
+    // ✅ تحديث الحالة (status)
+    if (status) {
+        const validStatuses = ["pending", "under_review", "approved", "rejected", "published"];
+        if (!validStatuses.includes(status)) {
+            return next(new Error("حالة غير صحيحة", { cause: 400 }));
+        }
+        submission.status = status;
+    }
+
+    // ✅ رفع فيديو جديد إذا تم إرساله (اختياري)
+    if (req.file) {
+        const uploadedVideo = await cloud.uploader.upload(req.file.path, {
+            folder: "startuprelly/projects/videos",
+            resource_type: "video",
+            chunk_size: 6000000,
+        });
+
+        submission.video = {
+            originalFileName: req.file.originalname,
+            secure_url: uploadedVideo.secure_url,
+            public_id: uploadedVideo.public_id,
+            duration: Math.round(uploadedVideo.duration || 0),
+            thumbnailUrl: uploadedVideo.secure_url.replace(/\.\w+$/, '.jpg')
+        };
+    }
+
+    // حفظ التعديلات
+    await submission.save();
+
+    return successresponse(res, {
+        message: "تم تعديل بيانات المشروع بنجاح",
+        data: {
+            submissionId: submission._id,
+            projectName: submission.project.name,
+            status: submission.status,
+            packageType: submission.packageType,
+            packagePrice: submission.packagePrice
+        }
+    }, 200);
+});
