@@ -73,8 +73,8 @@ routr.post(
 
 
 
-routr.put(
-    "/auth/updateProjectSubmission/:submissionId",
+routr.post(
+    "/updateProjectSubmission/:submissionId",
     uploadCloudFile([
         ...fileValidationTypes.video// فقط فيديو       
     ]).single("video"),                    // اسم الحقل = "video"
