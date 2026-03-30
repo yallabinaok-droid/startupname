@@ -8170,3 +8170,112 @@ export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
         }
     }, 200);
 });
+
+
+
+
+
+// ==================== قبول مشروع وإرسال تهنئة + طلب تسجيل صوتي ====================
+// ==================== قبول مشروع وإرسال تهنئة + طلب تسجيل صوتي + دفع الباقة ====================
+export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
+
+    const {
+        submissionId,
+        fullName,
+        email
+    } = req.body;
+
+    // ✅ التحقق الأساسي
+    if (!submissionId || !fullName || !email) {
+        return next(new Error("يجب إدخال معرف التقديم والاسم والإيميل", { cause: 400 }));
+    }
+
+    // ✅ البحث عن التقديم
+    const submission = await ProjectSubmission.findById(submissionId);
+
+    if (!submission) {
+        return next(new Error("لم يتم العثور على التقديم", { cause: 404 }));
+    }
+
+    if (submission.status === "approved") {
+        return next(new Error("هذا المشروع تم قبوله بالفعل", { cause: 400 }));
+    }
+
+    // ✅ تحديث الحالة إلى approved
+    submission.status = "approved";
+    submission.reviewedAt = new Date();
+    await submission.save();
+
+    // ✅ تحديد رسوم الباقة
+    let packagePriceText = "";
+    if (submission.packageType === "basic") packagePriceText = "350 جنيه";
+    else if (submission.packageType === "pro") packagePriceText = "700 جنيه";
+    else if (submission.packageType === "premium") packagePriceText = "1,200 جنيه";
+
+    // ✅ إرسال إيميل التهنئة + طلب التسجيل الصوتي + دفع الباقة
+    try {
+        const emailHTML = `
+        <div style="font-family: 'Cairo', Arial, sans-serif; max-width: 650px; margin: 0 auto; padding: 30px; background:#f8fafc; border-radius: 16px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <h1 style="color: #10b981; margin: 0;">مبروك! 🎉</h1>
+                <p style="color: #64748b; font-size: 18px;">StartupRelly</p>
+            </div>
+            
+            <h2 style="color: #1e2937;">مبروك يا ${fullName} 👏</h2>
+            
+            <p style="font-size: 16px; line-height: 1.7; color: #334155;">
+                تم قبول مشروعك <strong>"${submission.project.name}"</strong> على منصة StartupRelly بنجاح.
+            </p>
+            
+            <div style="background: white; padding: 20px; border-radius: 12px; margin: 25px 0; text-align:center;">
+                <p style="font-size: 18px; color: #10b981;">الخطوة التالية:</p>
+                
+                <p style="margin: 15px 0;">
+                    1. يرجى إرسال <strong>تسجيل صوتي</strong> (مدة 3-4 دقائق) عبر الواتساب على الرقم:<br>
+                    <strong style="font-size: 20px; color: #10b981;">01098599892</strong>
+                </p>
+                
+                <p style="color: #334155; margin: 10px 0;">
+                    في التسجيل يرجى ذكر:<br>
+                    • اسمك<br>
+                    • اسم المشروع<br>
+                    • المشكلة التي تحلها<br>
+                    • الحل والمميزات<br>
+                    • المبلغ المطلوب والنسبة<br>
+                    • نوع الشراكة المطلوبة
+                </p>
+
+                <p style="margin-top: 20px; font-weight: bold;">
+                    2. يرجى دفع رسوم الباقة المخصصة لمشروعك وهي <strong>${packagePriceText}</strong>
+                </p>
+            </div>
+            
+            <p style="color: #64748b; text-align:center;">
+                شكراً لثقتك في StartupRelly<br>
+                نحن سعداء بكونك جزء من مجتمعنا
+            </p>
+        </div>`;
+
+        await sendemail({
+            to: email,
+            subject: "مبروك! تم قبول مشروعك على StartupRelly",
+            html: emailHTML,
+            text: `مبروك يا ${fullName}، تم قبول مشروعك "${submission.project.name}" على StartupRelly. يرجى إرسال تسجيل صوتي عبر الواتساب على رقم 01098599892، ودفع رسوم الباقة المخصصة للمشروع (${packagePriceText}).`
+        });
+
+        console.log(`✅ تم إرسال إيميل قبول المشروع إلى: ${email}`);
+
+    } catch (emailError) {
+        console.error("فشل إرسال إيميل القبول:", emailError.message);
+    }
+
+    return successresponse(res, {
+        message: "تم قبول المشروع بنجاح وإرسال الإيميل لصاحبه",
+        data: {
+            submissionId: submission._id,
+            projectName: submission.project.name,
+            status: "approved",
+            packagePrice: submission.packagePrice
+        }
+    }, 200);
+});
