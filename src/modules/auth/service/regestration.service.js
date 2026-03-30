@@ -8175,19 +8175,22 @@ export const getAllProjectSubmissions = asyncHandelr(async (req, res, next) => {
 
 
 
-// ==================== قبول مشروع وإرسال تهنئة + طلب تسجيل صوتي ====================
 // ==================== قبول مشروع وإرسال تهنئة + طلب تسجيل صوتي + دفع الباقة ====================
 export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
 
-    const {
+    const { 
         submissionId,
-        fullName,
-        email
+        packageType,
+        packagePrice
     } = req.body;
 
     // ✅ التحقق الأساسي
-    if (!submissionId || !fullName || !email) {
-        return next(new Error("يجب إدخال معرف التقديم والاسم والإيميل", { cause: 400 }));
+    if (!submissionId) {
+        return next(new Error("يجب إدخال معرف التقديم (submissionId)", { cause: 400 }));
+    }
+
+    if (!packageType || !packagePrice) {
+        return next(new Error("يجب إدخال نوع الباقة ورسومها", { cause: 400 }));
     }
 
     // ✅ البحث عن التقديم
@@ -8206,11 +8209,13 @@ export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
     submission.reviewedAt = new Date();
     await submission.save();
 
-    // ✅ تحديد رسوم الباقة
-    let packagePriceText = "";
-    if (submission.packageType === "basic") packagePriceText = "350 جنيه";
-    else if (submission.packageType === "pro") packagePriceText = "700 جنيه";
-    else if (submission.packageType === "premium") packagePriceText = "1,200 جنيه";
+    // ✅ استخراج البيانات من الـ submission
+    const fullName = submission.user.fullName;
+    const email = submission.user.email;
+    const projectName = submission.project.name;
+
+    // ✅ تحويل packagePrice إلى نص للإيميل
+    let packagePriceText = `${packagePrice} جنيه`;
 
     // ✅ إرسال إيميل التهنئة + طلب التسجيل الصوتي + دفع الباقة
     try {
@@ -8224,7 +8229,7 @@ export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
             <h2 style="color: #1e2937;">مبروك يا ${fullName} 👏</h2>
             
             <p style="font-size: 16px; line-height: 1.7; color: #334155;">
-                تم قبول مشروعك <strong>"${submission.project.name}"</strong> على منصة StartupRelly بنجاح.
+                تم قبول مشروعك <strong>"${projectName}"</strong> على منصة StartupRelly بنجاح.
             </p>
             
             <div style="background: white; padding: 20px; border-radius: 12px; margin: 25px 0; text-align:center;">
@@ -8260,7 +8265,7 @@ export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
             to: email,
             subject: "مبروك! تم قبول مشروعك على StartupRelly",
             html: emailHTML,
-            text: `مبروك يا ${fullName}، تم قبول مشروعك "${submission.project.name}" على StartupRelly. يرجى إرسال تسجيل صوتي عبر الواتساب على رقم 01098599892، ودفع رسوم الباقة المخصصة للمشروع (${packagePriceText}).`
+            text: `مبروك يا ${fullName}، تم قبول مشروعك "${projectName}" على StartupRelly. يرجى إرسال تسجيل صوتي عبر الواتساب على رقم 01098599892، ودفع رسوم الباقة (${packagePriceText}).`
         });
 
         console.log(`✅ تم إرسال إيميل قبول المشروع إلى: ${email}`);
@@ -8275,7 +8280,8 @@ export const approveProjectSubmission = asyncHandelr(async (req, res, next) => {
             submissionId: submission._id,
             projectName: submission.project.name,
             status: "approved",
-            packagePrice: submission.packagePrice
+            packageType,
+            packagePrice
         }
     }, 200);
 });
