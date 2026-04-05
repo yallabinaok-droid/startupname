@@ -5,7 +5,7 @@ import {  decodedToken } from "../utlis/security/Token.security.js";
 
 
 
-export const authentication = () => {
+/*export const authentication = () => {
     return asyncHandelr(async (req, res, next) => {
         req.user = await decodedToken({ authorization: req.headers.authorization, next });
         return next();
@@ -61,4 +61,4 @@ export const authorization = (roletypes) => {
 
         return next();
     });
-};
+};*/
